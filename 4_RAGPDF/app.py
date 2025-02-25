@@ -113,11 +113,16 @@ if api_key:
         rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
         def get_session_history(session:str) -> BaseChatMessageHistory:
-            if session_id not in st.session_state.store:
+            if 'store' not in st.session_state:
+                st.session_state['store'] = {}
 
-                # All conversation with this session id will be stored
-                st.session_state.store[session_id] = ChatMessageHistory()
-            return st.session_state.store[session_id]
+            # Check if the session ID is already in the store
+            if session_id not in st.session_state['store']:
+                # Initialize the session ID with a ChatMessageHistory if not present
+                st.session_state['store'][session_id] = ChatMessageHistory()
+            # Return the chat message history for the given session ID
+            return st.session_state['store'][session_id]
+
         
         conversational_rag_chain = RunnableWithMessageHistory(
             rag_chain,get_session_history,
@@ -133,9 +138,9 @@ if api_key:
                 {"input": user_input},
                 config={
                     "configurable": {"session_id": session_id}
-                },  # constructs a key "abc123" in `store`.
+                },
             )
-            st.write(st.session_state.store)
+            st.write(st.session_state['store'])
             st.write("Assistant:", response['answer'])
             st.write("Chat History:", session_history.messages)
 
