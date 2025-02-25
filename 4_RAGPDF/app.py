@@ -16,7 +16,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
-embeddings =HuggingFaceEmbeddings(model_name = "all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name = "all-MiniLM-L6-v2")
+
+# Refer to Langchain docs for vector store usage
+vector_store = Chroma(
+    collection_name="test_collection",
+    embedding_function=embeddings,
+    persist_directory="./chroma", # where to save data locally
+)
 
 # Streamlit config
 st.title("Conversational RAG with PDF Upload and Chat History Features")
@@ -56,12 +63,12 @@ if api_key:
             documents.extend(docs)
     
         # Split and create embeddings for the documents
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=500)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         splits = text_splitter.split_documents(documents)
 
         # Split the document and store it in embedding vectors
-        vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
-        retriever = vectorstore.as_retriever()    
+        vector_store.add_documents(splits)
+        retriever = vector_store.as_retriever()    
 
         # Instructions for model
         contextualize_q_system_prompt=(
