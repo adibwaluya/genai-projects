@@ -35,3 +35,4 @@ fastapi
 uvicorn
 langserve
 sse_starlette
+yt_dlp
