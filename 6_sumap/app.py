@@ -18,6 +18,14 @@ generic_url = st.text_input("URL", label_visibility="collapsed")
 ## Gemma model
 llm = ChatGroq(model = "Gemma-7b-It", groq_api_key = groq_api_key)
 
+prompt_template = """
+Provide a summary of the following content in 300 words:
+Content:{text}
+
+"""
+
+prompt = PromptTemplate(template = prompt_template, input_variables = ["text"])
+
 if st.button("Summarize the content from YouTube or Website"):
 
     # validate input
@@ -43,5 +51,6 @@ if st.button("Summarize the content from YouTube or Website"):
                     )
                 docs = loader.load()
 
-               
+                # Chain for summarization
+                chain = load_summarize_chain(llm, chain_type = "stuff", prompt = prompt)
         except:
