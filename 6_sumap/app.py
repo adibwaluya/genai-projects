@@ -15,7 +15,7 @@ with st.sidebar:
 
 generic_url = st.text_input("URL", label_visibility="collapsed")
 
-## Gemma model
+## Initialize Gemma model
 llm = ChatGroq(model = "Gemma-7b-It", groq_api_key = groq_api_key)
 
 prompt_template = """
@@ -42,6 +42,7 @@ if st.button("Summarize the content from YouTube or Website"):
                 if "youtube.com" in generic_url:
                     loader = YoutubeLoader.from_youtube_url(generic_url, add_video_info = True)
                 else:
+                    # hit the url and server requires headers
                     loader = UnstructuredURLLoader(
                         urls = [generic_url],
                         ssl_verify = False,
@@ -53,4 +54,8 @@ if st.button("Summarize the content from YouTube or Website"):
 
                 # Chain for summarization
                 chain = load_summarize_chain(llm, chain_type = "stuff", prompt = prompt)
-        except:
+                output_summary = chain.run(docs)
+
+                st.success(output_summary)
+        except Exception as e:
+            st.exception(f"Exception:{e}")
