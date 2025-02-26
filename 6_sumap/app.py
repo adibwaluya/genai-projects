@@ -13,5 +13,35 @@ st.subheader('Summarize URL')
 with st.sidebar:
     groq_api_key = st.text_input("Groq API Key", value = "", type="password")
 
-url = st.text_input("URL", label_visibility="collapsed")
+generic_url = st.text_input("URL", label_visibility="collapsed")
 
+## Gemma model
+llm = ChatGroq(model = "Gemma-7b-It", groq_api_key = groq_api_key)
+
+if st.button("Summarize the content from YouTube or Website"):
+
+    # validate input
+    if not groq_api_key.strip() or not generic_url.strip():
+        st.error("Please provide the information to get started")
+    elif not validators.url(generic_url):
+        st.error("Please enter a valid URL. It ca be a YouTube or website link")
+
+    else:
+        try:
+            with st.spinner("Waiting..."):
+
+                # load the site or youtube data
+                if "youtube.com" in generic_url:
+                    loader = YoutubeLoader.from_youtube_url(generic_url, add_video_info = True)
+                else:
+                    loader = UnstructuredURLLoader(
+                        urls = [generic_url],
+                        ssl_verify = False,
+                        headers = {
+                            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+                        }
+                    )
+                docs = loader.load()
+
+               
+        except:
