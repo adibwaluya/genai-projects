@@ -40,7 +40,7 @@ if st.button("Summarize the content from YouTube or Website"):
 
                 # load the site or youtube data
                 if "youtube.com" in generic_url:
-                    loader = YoutubeLoader.from_youtube_url(generic_url, add_video_info = True)
+                    loader = YoutubeLoader.from_youtube_url(generic_url, add_video_info = False)
                 else:
                     # hit the url and server requires headers
                     loader = UnstructuredURLLoader(
