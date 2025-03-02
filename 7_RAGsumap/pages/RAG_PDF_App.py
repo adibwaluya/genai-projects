@@ -15,134 +15,122 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
-embeddings = HuggingFaceEmbeddings(model_name = "all-MiniLM-L6-v2")
-
-# Refer to Langchain docs for vector store usage
-vector_store = Chroma(
-    collection_name="test_collection",
-    embedding_function=embeddings,
-    persist_directory="./chroma", # where to save data locally
-)
-
 # Streamlit config
-st.title("Conversational RAG with PDF Upload and Chat History Features")
-st.write("Upload PDF and chat with their content")
+st.set_page_config(page_title="RAG PDF Chat", layout="wide")
+st.title("Conversational RAG with PDF Upload")
+st.write("Upload a PDF and chat with its content.")
 
 api_key = st.text_input("Enter your Groq API key:", type="password")
 
-## Check if Groq API key is provided
 if api_key:
-
-    # Initialize LLM model
-    llm = ChatGroq(groq_api_key = api_key, model_name = "Gemma2-9b-It")
-
+    ## Initialize Gemma model
+    llm = ChatGroq(groq_api_key=api_key, model_name="Gemma2-9b-It")
     session_id = st.text_input("Session ID", value="default_session")
 
-    # Manage chat history statefully
-    if 'store' not in st.session_state:
-        st.session_state = {}
+    if "store" not in st.session_state:
+        st.session_state["store"] = {}
 
     uploaded_files = st.file_uploader("Upload a PDF file", type="pdf", accept_multiple_files=True)
 
     if uploaded_files:
-
-        # possibly multiple pages
         documents = []
         for uploaded_file in uploaded_files:
-
-            # temporary PDF in local
-            temppdf = f"./temp.pdf"
+            temppdf = f"./temp.pdf"     # temporary pdf in local
             with open(temppdf, "wb") as file:
                 file.write(uploaded_file.getvalue())
-                file_name = uploaded_file.name
 
-            # Load PDF and read content
+            # load pdf and read content
             loader = PyPDFLoader(temppdf)
             docs = loader.load()
             documents.extend(docs)
-    
+
         # Split and create embeddings for the documents
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=30)
         splits = text_splitter.split_documents(documents)
-
-        # Split the document and store it in embedding vectors
-        vector_store.add_documents(splits)
-        retriever = vector_store.as_retriever()    
-
-        # Instructions for model
-        contextualize_q_system_prompt=(
-            "Given a chat history and the latest user question"
-            "which might reference context in the chat history, "
-            "formulate a standalone question which can be understood "
-            "without the chat history. Do NOT answer the question, "
-            "just reformulate it if needed and otherwise return it as is."
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        
+        # Refer to Langchain docs for vector store usage
+        vector_store = Chroma(
+            collection_name="test_collection",
+            embedding_function=embeddings,
+            persist_directory="./chroma"
         )
 
+        batch_size = 50  # Adjust based on the RAM
+        for i in range(0, len(splits), batch_size):
+            vector_store.add_documents(splits[i:i + batch_size])
+        retriever = vector_store.as_retriever()
+
         contextualize_q_prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", contextualize_q_system_prompt),
-                    MessagesPlaceholder("chat_history"),
-                    ("human", "{input}"),
-                ]
-            )
-        
+            [
+                ("system", "Reformulate the question without chat history."),
+                MessagesPlaceholder("chat_history"),
+                ("human", "{input}"),
+            ]
+        )
+
         history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
 
-        ## Answer question
-
-        # Answer question
-        system_prompt = (
-                "You are an assistant for question-answering tasks. "
-                "Use the following pieces of retrieved context to answer "
-                "the question. If you don't know the answer, say that you "
-                "don't know. Use three sentences maximum and keep the "
-                "answer concise."
-                "\n\n"
-                "{context}"
-            )
         qa_prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", system_prompt),
-                    MessagesPlaceholder("chat_history"),
-                    ("human", "{input}"),
-                ]
-            )
-        
+            [
+                ("system", "Use retrieved context to answer. If unknown, say so.\n\n{context}"),
+                MessagesPlaceholder("chat_history"),
+                ("human", "{input}"),
+            ]
+        )
+
         question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
         rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
-        def get_session_history(session:str) -> BaseChatMessageHistory:
-            if 'store' not in st.session_state:
-                st.session_state['store'] = {}
+        # Responsible for storing chat history
+        def get_session_history(session: str) -> BaseChatMessageHistory:
+            if "store" not in st.session_state:
+                st.session_state["store"] = {}      # initialize only if missing/doesn't exist
 
-            # Check if the session ID is already in the store
-            if session_id not in st.session_state['store']:
-                # Initialize the session ID with a ChatMessageHistory if not present
-                st.session_state['store'][session_id] = ChatMessageHistory()
+            if session not in st.session_state["store"]:
+                ## Initialize the session ID with a ChatMessageHistory if not present
+                st.session_state["store"][session] = ChatMessageHistory()
+            
             # Return the chat message history for the given session ID
-            return st.session_state['store'][session_id]
+            return st.session_state["store"][session]
 
+        def add_message_to_history(session, message, role="human"):
+            # Retrieve chat history for the session
+            history = get_session_history(session)
+            
+            # Ensure the message is not duplicated by checking if it's already in the history
+            if message not in [msg.content for msg in history.messages]:
+                # Add the message to the history
+                history.add_message(role=role, content=message)
         
         conversational_rag_chain = RunnableWithMessageHistory(
-            rag_chain,get_session_history,
+            rag_chain,
+            get_session_history,
             input_messages_key="input",
             history_messages_key="chat_history",
-            output_messages_key="answer"
+            output_messages_key="answer",
         )
 
         user_input = st.text_input("Your question:")
         if user_input:
             session_history = get_session_history(session_id)
+            
+            # Call RAG chain to retrieve response
             response = conversational_rag_chain.invoke(
                 {"input": user_input},
-                config={
-                    "configurable": {"session_id": session_id}
-                },
+                config={"configurable": {"session_id": session_id}},
             )
-            st.write(st.session_state['store'])
-            st.write("Assistant:", response['answer'])
-            st.write("Chat History:", session_history.messages)
+
+            # session_history.add_user_message(user_input)
+            # session_history.add_ai_message(response["answer"])
+            
+            add_message_to_history(session_id, user_input, role="human")
+            add_message_to_history(session_id, response['answer'], role="assistant")
+
+            st.write("Assistant:", response["answer"])
+
+    # Add a link to the chat history page
+    st.page_link("pages/RAG_chat_history.py", label="View Chat History 📜", icon="📄")
 
 else:
-    st.warning("Please enter the GRoq API Key")
+    st.warning("Please enter your Groq API Key")
