@@ -35,7 +35,7 @@ if api_key:
     if uploaded_files:
         documents = []
         for uploaded_file in uploaded_files:
-            temppdf = f"./temp.pdf"     # temporary pdf in local
+            temppdf = f"./temp.pdf"     # temporary pdfs in local
             with open(temppdf, "wb") as file:
                 file.write(uploaded_file.getvalue())
 
@@ -130,7 +130,7 @@ if api_key:
             st.write("Assistant:", response["answer"])
 
     # Add a link to the chat history page
-    st.page_link("pages/RAG_chat_history.py", label="View Chat History 📜", icon="📄")
+    st.page_link("pages/RAG_chat_history.py", label="View Chat History 📜")
 
 else:
     st.warning("Please enter your Groq API Key")

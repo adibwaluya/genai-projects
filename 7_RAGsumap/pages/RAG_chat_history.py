@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.title("Chat History")
+st.title("RAG PDF Chat History")
 
 # Ensure chat history exists
 if "store" in st.session_state and st.session_state["store"]:
@@ -23,4 +23,4 @@ else:
     st.write("No chat history found.")
 
 # Add a button to go back
-st.page_link("pages/RAG_PDF_App.py", label="🔙 Back to Chat")
+st.page_link("pages/RAG_PDF_App.py", label="Back to Chat")
