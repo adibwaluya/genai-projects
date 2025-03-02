@@ -103,6 +103,7 @@ if api_key:
                 # Add the message to the history
                 history.add_message(role=role, content=message)
         
+        # Maintain/keep track of chat history
         conversational_rag_chain = RunnableWithMessageHistory(
             rag_chain,
             get_session_history,
